@@ -1,6 +1,5 @@
 const express = require('express');
 const passport = require('passport');
-const passportLocalMongoose = require('passport-local-mongoose');
 const app = express();
 
 app.use(express.static(__dirname));
@@ -23,6 +22,7 @@ app.listen(port, () => console.log('App listening on port ' + port));
 
 /* MONGOOSE SETUP */
 const mongoose = require('mongoose');
+const passportLocalMongoose = require('passport-local-mongoose');
 
 const url = `mongodb+srv://dbUser:VhAMa0Ugulc7XEXi@cluster0.o6tgn.mongodb.net/passport?retryWrites=true&w=majority`;
 
@@ -48,3 +48,55 @@ const UserDetail = new Schema({
 UserDetail.plugin(passportLocalMongoose);
 const UserDetails = mongoose.model('userInfo', UserDetail, 'userInfo');
 
+/* PASSPORT LOCAL AUTHENTICATION */
+
+passport.use(UserDetails.createStrategy());
+
+passport.serializeUser(UserDetails.serializeUser());
+passport.deserializeUser(UserDetails.deserializeUser());
+
+/* ROUTES */
+
+const connectEnsureLogin = require('connect-ensure-login');
+
+app.post('/login', (req, res, next) => {
+    passport.authenticate('local',
+        (err, user, info) => {
+            if (err) {
+                return next(err);
+            }
+
+            if (!user) {
+                return res.redirect('/login?info=' + info);
+            }
+
+            req.logIn(user, function(err) {
+                if (err) {
+                    return next(err);
+                }
+
+                return res.redirect('/');
+            });
+
+        })(req, res, next);
+});
+
+app.get('/login',
+    (req, res) => res.sendFile('html/login.html',
+        { root: __dirname })
+);
+
+app.get('/',
+    connectEnsureLogin.ensureLoggedIn(),
+    (req, res) => res.sendFile('html/index.html', {root: __dirname})
+);
+
+app.get('/private',
+    connectEnsureLogin.ensureLoggedIn(),
+    (req, res) => res.sendFile('html/private.html', {root: __dirname})
+);
+
+app.get('/user',
+    connectEnsureLogin.ensureLoggedIn(),
+    (req, res) => res.send({user: req.user})
+);
